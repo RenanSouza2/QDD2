@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <limits.h>
+#include <float.h>
 #include <string.h>
 #include <sys/time.h>
 
@@ -61,14 +63,14 @@ struct no_amplitude
 struct QDD
 {
     struct no *n;
-    char   N;
     struct lista_body *lb;
+    char   N;
 };
 
 struct apply
 {
-    struct no    *n, *n1, *n2;
-    struct apply *a, *a1, *a2;
+    struct apply *a1, *a2, *a;
+    struct no    *n1, *n2, *n;
 };
 
 
@@ -88,28 +90,44 @@ typedef unsigned long long Long;
 
 
 
-#define BODY(PONTEIRO)((lista_body*)PONTEIRO)
-#define HEAD(PONTEIRO)((lista_head*)PONTEIRO)
-#define NO(PONTEIRO)((no*)PONTEIRO)
-#define LABEL(PONTEIRO)((label*)(HEAD(PONTEIRO)+1))
-#define NLABEL(PONTEIRO)(LABEL(BODY(PONTEIRO)->n))
-#define NEST(PONTEIRO)((no_estrutura*)PONTEIRO)
-#define NAMP(PONTEIRO)((no_amplitude*)PONTEIRO)
-#define EST(PONTEIRO)((estrutura*)(NO(PONTEIRO)+1))
-#define AMP(PONTEIRO)((amplitude*)(NO(PONTEIRO)+1))
-#define COMPARE_LABEL(LABEL_1, OPERANDO, LABEL_2) (*((long*)LABEL_1) OPERANDO *((long*)LABEL_2))
-#define SUBTRACT_POINTER(POINTER_1, POINTER_2) (((void*)POINTER_1) - ((void*)POINTER_2))
-#define COMPARE_STRUCT(PONTEIRO_1, PONTEIRO_2, ESTRUTURA)(memcmp(PONTEIRO_1, PONTEIRO_2, sizeof(ESTRUTURA))==0)
-#define COPY_STRUCT(PONTEIRO_1, PONTEIRO_2, ESTRUTURA)(memcpy(PONTEIRO_1,PONTEIRO_2,sizeof(ESTRUTURA)))
+#define BODY(PONTEIRO)      ((lista_body*)PONTEIRO)
+#define HEAD(PONTEIRO)      ((lista_head*)PONTEIRO)
+#define NO(PONTEIRO)        ((no*)PONTEIRO)
+#define LABEL(PONTEIRO)     ((label*)(HEAD(PONTEIRO)+1))
+#define NLABEL(PONTEIRO)    (LABEL(BODY(PONTEIRO)->n))
+#define NEST(PONTEIRO)      ((no_estrutura*)PONTEIRO)
+#define NAMP(PONTEIRO)      ((no_amplitude*)PONTEIRO)
+#define EST(PONTEIRO)       ((estrutura*)(NO(PONTEIRO)+1))
+#define VEST(PONTEIRO)      ((no**)EST(PONTEIRO))
+#define VAPPLY(PONTEIRO)    ((apply**)(PONTEIRO))
+#define AMP(PONTEIRO)       ((amplitude*)(NO(PONTEIRO)+1))
+
+#define LADO(NO, NO1)               (VEST(NO)[0] != NO1)
+#define ACCESS(MATRIX, PONTEIRO)    MATRIX[LABEL(PONTEIRO)->ni][LABEL(PONTEIRO)->cl]
+
+#define COMPARE_LABEL(LABEL_1, OPERANDO, LABEL_2)       (*((long*)LABEL_1) OPERANDO *((long*)LABEL_2))
+#define SUBTRACT_POINTER(POINTER_1, POINTER_2)          (((void*)POINTER_1) - ((void*)POINTER_2))
+#define COPY_STRUCT(PONTEIRO_1, PONTEIRO_2, ESTRUTURA)  (memcpy(PONTEIRO_1,PONTEIRO_2,sizeof(ESTRUTURA)))
+
+
+double eps;
+int iNE, iNA, iLB, iLH, iA;
+lista_body *lb_zero, *LB[2][2];
 
 
 
-int iNE = 0, iNA = 0, iLB = 0, iLH = 0;
-lista_body *lb_zero;
-
-void exit_program()
+void exit_program(char *s)
 {
+    printf("\n\n\nERRO");
+    if(s != NULL)
+        printf("\t%s",s);
+    fflush(stdout);
     exit(123456);
+}
+
+void set_Qbit(int N)
+{
+    eps = pow(2,-0.5*N)/300;
 }
 
 
@@ -119,7 +137,7 @@ no_estrutura* cria_no_estrutra(int classe, int nivel)
     no_estrutura *ne;
     ne = malloc(sizeof(no_estrutura));
     if(ne == NULL)
-        exit_program();
+        exit_program("CRIA NO ESTRUTURA");
     iNE++;
 
     BODY(ne)->n   = NULL;
@@ -138,7 +156,7 @@ no_amplitude* cria_no_amplitude(double re, double im)
     no_amplitude *na;
     na = malloc(sizeof(no_amplitude));
     if(na == NULL)
-        exit_program();
+        exit_program("CRIA NO AMPLITUDE");
     iNA++;
 
     BODY(na)->n  = NULL;
@@ -152,6 +170,41 @@ no_amplitude* cria_no_amplitude(double re, double im)
     return na;
 }
 
+no_estrutura* copia_no_estrutura(no_estrutura *ne_0)
+{
+    no_estrutura *ne_1;
+    ne_1 = malloc(sizeof(no_amplitude));
+    if(ne_1 == NULL)
+        exit_program("COPIA NO ESTRUTURA");
+    iNE++;
+
+    BODY(ne_1)->n  = NULL;
+    BODY(ne_1)->lb = NULL;
+    HEAD(ne_1)->lh = NULL;
+    COMPARE_LABEL(LABEL(ne_1),=,LABEL(ne_0));
+    COPY_STRUCT(EST(ne_1),EST(ne_0),estrutura);
+
+    return ne_1;
+}
+
+no_amplitude* copia_no_amplitude(no_amplitude *na_0)
+{
+    no_amplitude *na_1;
+    na_1 = malloc(sizeof(no_amplitude));
+    if(na_1 == NULL)
+        exit_program("COPIA NO AMPLITUDE");
+    iNA++;
+
+    BODY(na_1)->n  = NULL;
+    BODY(na_1)->lb = NULL;
+    HEAD(na_1)->lh = NULL;
+    LABEL(na_1)->ni = 0;
+    LABEL(na_1)->cl = 0;
+    COPY_STRUCT(AMP(na_1),AMP(na_0),amplitude);
+
+    return na_1;
+}
+
 
 
 lista_body* cria_lista_body(no *n, lista_body *lb_next)
@@ -159,7 +212,7 @@ lista_body* cria_lista_body(no *n, lista_body *lb_next)
     lista_body *lb;
     lb = malloc(sizeof(lista_body));
     if(lb == NULL)
-        exit_program();
+        exit_program("CRIA LISTA BODY");
     iLB++;
 
     lb->n  = n;
@@ -173,7 +226,7 @@ lista_body* cria_lista_body_vazio()
     lista_body *lb;
     lb = malloc(sizeof(lista_body));
     if(lb == NULL)
-        exit_program();
+        exit_program("CRIA LISTA BODY VAZIO");
     iLB++;
 
     lb->n  = NULL;
@@ -187,7 +240,7 @@ lista_body* cria_lista_body_pendurado()
     lista_body *lb;
     lb = malloc(sizeof(lista_body));
     if(lb == NULL)
-        exit_program();
+        exit_program("CRIA LISTA BODY PENDURADO");
     iLB++;
 
     return lb;
@@ -198,7 +251,7 @@ lista_body* cria_lista_body_copia(lista_body *lb_0)
     lista_body *lb;
     lb = malloc(sizeof(lista_body));
     if(lb == NULL)
-        exit_program();
+        exit_program("CRIA LISTA BODY COPIA");
     iLB++;
 
     COPY_STRUCT(lb,lb_0,lista_body);
@@ -213,7 +266,7 @@ lista_head* cria_lista_head(no *n, lista_head *lh_next)
     lista_head *lh;
     lh = malloc(sizeof(lista_head));
     if(lh == NULL)
-        exit_program();
+        exit_program("CRIA LISTA HEAD");
     iLH++;
 
     BODY(lh)->n  = n;
@@ -228,7 +281,7 @@ lista_head* cria_lista_head_vazio()
     lista_head *lh;
     lh = calloc(sizeof(lista_head),1);
     if(lh == NULL)
-        exit_program();
+        exit_program("CRIA LISTA HEAD VAZIO");
     iLH++;
     return lh;
 }
@@ -238,7 +291,7 @@ lista_head* cria_lista_head_pendurado()
     lista_head *lh;
     lh = malloc(sizeof(lista_head));
     if(lh == NULL)
-        exit_program();
+        exit_program("CRIA LISTA HEAD PENDURADO");
     iLH++;
     return lh;
 }
@@ -248,7 +301,7 @@ lista_head* cria_lista_head_copia(lista_head *lh_0)
     lista_head *lh;
     lh = malloc(sizeof(lista_head));
     if(lh == NULL)
-        exit_program();
+        exit_program("CRIA LISTA HEAD COPIA");
     COPY_STRUCT(lh,lh_0,lista_head);
     iLH++;
     return lh;
@@ -259,7 +312,7 @@ lista_head* cria_lista_head_body(lista_body *lb)
     lista_head *lh;
     lh = malloc(sizeof(lista_head));
     if(lh == NULL)
-        exit_program();
+        exit_program("CRIA LISTA HEAD BODY");
     iLH++;
     COPY_STRUCT(lh,lb,lista_body);
     lh->lh = NULL;
@@ -270,7 +323,32 @@ lista_head* cria_lista_head_body(lista_body *lb)
 
 apply* cria_apply(no *n1, no *n2)
 {
+    apply *a;
+    a = malloc(sizeof(apply));
+    if(a == NULL)
+        exit_program("CRIA APPLY");
+    iA++;
 
+    a->n  = NULL;
+    a->a  = NULL;
+    a->a1 = NULL;
+    a->a2 = NULL;
+
+    a->n1 = n1;
+    a->n2 = n2;
+
+    return a;
+}
+
+apply* cria_apply_vazio()
+{
+    apply *a;
+    a = calloc(sizeof(apply),1);
+    if(a == NULL)
+        exit_program("CRIA APPLY VAZIO");
+
+    iA++;
+    return a;
 }
 
 
@@ -337,14 +415,43 @@ void libera_no(no *n)
 
 
 
+void libera_apply_item(apply *a)
+{
+    free(a);
+    iA--;
+}
+
+void libera_apply_lista(apply *a)
+{
+    apply *a_aux;
+    while(a != NULL)
+    {
+        a_aux = a->a;
+        libera_apply_item(a);
+        a = a_aux;
+    }
+}
+
+
+
 void inicia_estruturas()
 {
     lb_zero = cria_lista_body_vazio();
+
+    LB[0][0] = cria_lista_body_vazio();
+    LB[0][1] = cria_lista_body_vazio();
+    LB[1][0] = cria_lista_body_vazio();
+    LB[1][1] = cria_lista_body_vazio();
 }
 
 void finaliza_estruturas()
 {
     libera_lista_body_item(lb_zero);
+
+    libera_lista_body_item(LB[0][0]);
+    libera_lista_body_item(LB[0][1]);
+    libera_lista_body_item(LB[1][0]);
+    libera_lista_body_item(LB[1][1]);
 }
 
 
@@ -386,6 +493,7 @@ void mostra_label(label *lab)
 }
 
 
+
 void mostra_lista_body_item(lista_body *lb)
 {
     mostra_cabecalho("LISTA BODY",lb);
@@ -417,6 +525,73 @@ void mostra_lista_body_lista(lista_body *lb)
 }
 
 
+
+void mostra_estrutura(estrutura *est)
+{
+    ;mostra_ponteiro(est->el);printf("\t\t");mostra_ponteiro(est->th);
+}
+
+void mostra_amplitude(amplitude *amp)
+{
+    if(amp == NULL)
+        return;
+
+    printf("% .4e",amp->re);
+    if(amp->im <  eps)
+        if(amp->im > -eps)
+            return;
+    printf(" % .4e",amp->im);
+}
+
+void mostra_dados(no *n)
+{
+    if(LABEL(n)->ni == 0)
+        mostra_amplitude(AMP(n));
+    else
+        mostra_estrutura(EST(n));
+}
+
+
+
+int conta_itens_lista_body(lista_body *lb)
+{
+    int i;
+    for(i=0; lb != NULL; i++, lb = lb->lb);
+    return i;
+}
+
+void mostra_lista_body_amplitudes(lista_body *lb)
+{
+    int i;
+    for(i=0; lb != NULL; i++, lb = lb->lb)
+    {
+        printf("\n\tNo %2d: ",i);
+        mostra_amplitude(AMP(lb->n));
+    }
+}
+
+void mostra_lista_body_estrutura_compacto(lista_body *lb)
+{
+    int i;
+    printf("\nLABEL: ");mostra_label(NLABEL(lb));
+    for(i=0; lb != NULL; i++, lb = lb->lb)
+    {
+        printf("\n\tNo %3d: ",i);mostra_ponteiro(lb->n);
+    }
+}
+
+void mostra_lista_body_estrutura_compacto_dados(lista_body *lb)
+{
+    int i;
+    printf("\nLABEL: ");mostra_label(NLABEL(lb));
+    for(i=0; lb != NULL; i++, lb = lb->lb)
+    {
+        printf("\n\tNo %3d: ",i);mostra_ponteiro(lb->n);printf("\t\t\t\t");mostra_dados(lb->n);
+    }
+}
+
+
+
 void mostra_lista_head_item(lista_head *lh)
 {
     mostra_cabecalho("LISTA HEAD",lh);
@@ -441,21 +616,34 @@ void mostra_lista_head_lista(lista_head *lh)
 
 void mostra_lista_head_estrutura_simples(lista_head *lh)
 {
-    lista_head *lh_aux;
-    for(lh_aux = lh; lh_aux != NULL; lh_aux = lh_aux->lh)
+    for(; lh->lh != NULL; lh = lh->lh)
     {
+        printf("\nLabel: ");mostra_label(NLABEL(lh));printf("\ttot: %d",conta_itens_lista_body(BODY(lh)));
         printf("\n---------------------");
-        printf("\nLabel: ");mostra_label(NLABEL(lh_aux));
-        mostra_lista_body_lista(BODY(lh_aux));
     }
-    printf("\n---------------------");
+    printf("\nAMPLITUDES");mostra_lista_body_amplitudes(BODY(lh));
 }
 
-
-void mostra_estrutura(estrutura *est)
+void mostra_lista_head_estrutura_compacto(lista_head *lh)
 {
-    mostra_ponteiro(est->el);printf("\tth: ");mostra_ponteiro(est->th);
+    for(; lh != NULL; lh = lh->lh)
+    {
+        lista_body *lb;
+        mostra_lista_body_estrutura_compacto(BODY(lh));
+        printf("\n---------------------");
+    }
 }
+
+void mostra_lista_head_estrutura_compacto_dados(lista_head *lh)
+{
+    for(; lh != NULL; lh = lh->lh)
+    {
+        mostra_lista_body_estrutura_compacto_dados(BODY(lh));
+        printf("\n---------------------------------------------------------------");
+    }
+}
+
+
 
 void mostra_no_estrutura(no_estrutura *ne)
 {
@@ -470,7 +658,7 @@ void mostra_no_estrutura(no_estrutura *ne)
     else
     {
         printf("\nAntecessores: ");
-        mostra_lista_head_estrutura_simples(HEAD(ne));
+        mostra_lista_head_estrutura_compacto(HEAD(ne));
     }
 
     printf("\nLabel: ");mostra_label(LABEL(ne));
@@ -489,13 +677,6 @@ void mostra_no_estrutura_compacto(no_estrutura *ne)
 }
 
 
-void mostra_amplitude(amplitude *amp)
-{
-    if(amp == NULL)
-        return;
-
-    printf("% .4e % .4e",amp->re,amp->im);
-}
 
 void mostra_no_amplitude(no_amplitude *na)
 {
@@ -510,7 +691,7 @@ void mostra_no_amplitude(no_amplitude *na)
     else
     {
         printf("\nAntecessores: ");
-        mostra_lista_head_estrutura_simples(HEAD(na));
+        mostra_lista_head_estrutura_compacto(HEAD(na));
     }
 
     printf("\nAmplitude: ");mostra_amplitude(AMP(na));
@@ -526,6 +707,7 @@ void mostra_no_amplitude_compacto(no_amplitude *na)
     printf("\nAmplitude: ");mostra_amplitude(AMP(na));
     printf("\n");
 }
+
 
 
 void mostra_no_base(no *n)
@@ -548,43 +730,21 @@ void mostra_no_compacto(no *n)
 void mostra_no(no *n)
 {
     if(LABEL(n)->ni == 0)
-    {
         mostra_no_amplitude(NAMP(n));
-        return;
-    }
-
-    mostra_no_estrutura(NEST(n));
+    else
+        mostra_no_estrutura(NEST(n));
 }
 
 
-void mostra_lista_body_amplitudes(lista_body *lb)
-{
-    lista_body *lb_aux;
-    int i;
-    for(i=0, lb_aux = lb; lb_aux != NULL; i++, lb_aux = lb_aux->lb)
-    {
-        printf("\n\tNo %2d: ",i);
-        mostra_amplitude(AMP(lb_aux->n));
-    }
-}
 
 void mostra_lista_body_estrutura_completa(lista_body *lb)
 {
-    for(; lb != NULL; lb = lb->lb)
-        mostra_no(lb->n);
-}
-
-void mostra_lista_head_estrutura_compacto(lista_head *lh)
-{
-    for(; lh != NULL; lh = lh->lh)
+    for(; lb->lb != NULL; lb = lb->lb)
     {
-        lista_body *lb;
-        printf("\n---------------------------------------------------------------");
-        printf("\nLABEL: ");mostra_label(NLABEL(lh));
-        for(lb = BODY(lh); lb != NULL; lb = lb->lb)
-            mostra_no_compacto(lb->n);
+        mostra_no(lb->n);
+        printf("\n------------------------------------------");
     }
-    printf("\n---------------------------------------------------------------");
+    mostra_no(lb->n);
 }
 
 void mostra_lista_head_estrutura_completo(lista_head *lh)
@@ -592,11 +752,28 @@ void mostra_lista_head_estrutura_completo(lista_head *lh)
     for(; lh != NULL; lh = lh->lh)
     {
         lista_body *lb;
+        mostra_lista_body_estrutura_completa(BODY(lh));
         printf("\n---------------------------------------------------------------");
-        for(lb = BODY(lh); lb != NULL; lb = lb->lb)
-            mostra_no(lb->n);
     }
-    printf("\n---------------------------------------------------------------");
+}
+
+
+
+void mostra_apply(apply *a)
+{
+    mostra_cabecalho("APPLY",a);
+    if(a == NULL)
+        return;
+
+    printf("\nNos: ");
+    printf("\n\tn1: ");mostra_ponteiro(a->n1);
+    printf("\n\tn2: ");mostra_ponteiro(a->n2);
+    printf("\n\tn : ");mostra_ponteiro(a->n);
+    printf("\nApplys: ");
+    printf("\n\ta1: ");mostra_ponteiro(a->a1);
+    printf("\n\ta2: ");mostra_ponteiro(a->a2);
+    printf("\n\ta : ");mostra_ponteiro(a->a);
+    printf("\n");
 }
 
 
@@ -607,6 +784,7 @@ void mostra_quantidades()
     printf("\niLH: %d",iLH);
     printf("\niNE: %d",iNE);
     printf("\niNA: %d",iNA);
+    printf("\niA : %d",iA);
     printf("\n");
 }
 
@@ -614,42 +792,66 @@ void mostra_quantidades()
 
 lista_head* enlista_arvore(no *n)
 {
-    lista_head *lh;
-    lh = cria_lista_head(n,NULL);
+/*
+printf("\nDentro enlistando");
+fflush(stdout);
+*/
+    int N, i, j;
+    N = 1 + LABEL(n)->ni;
+    lista_head *LH[N][3];
+    for(i=0; i<N; i++)
+    for(j=0; j<3; j++)
+        LH[i][j] = NULL;
+/*
+printf("\nzerado");
+fflush(stdout);
+*/
+    lista_head *lh_0;
+    lh_0 = cria_lista_head(n,NULL);
+    ACCESS(LH,n) = lh_0;
 
-    lista_head *lh_1;
-    lista_body *lb_1;
-    for(lh_1 = lh; NLABEL(lh_1)->ni != 0; lh_1 = lh_1->lh)
-        for(lb_1 = BODY(lh_1); lb_1 != NULL;  lb_1 = lb_1->lb)
+    lista_head *lh, *lh_1;
+    lista_body *lb, *lb_1;
+    int k;
+    lh = lh_0;
+    for(i=N-1; i> 0; i--)
+    for(j=2  ; j>=0; j--)
+    {
+        if(LH[i][j] == NULL)
+            continue;
+/*
+printf("\nNova cordenada: %2d %2d",i,j);
+fflush(stdout);
+*/
+        lh->lh = LH[i][j];
+        lh     = lh->lh;
+
+        for(lb = BODY(lh); lb != NULL; lb = lb->lb)
         {
-            no **n_filhos;
-            n_filhos = EST(lb_1->n);
-            for(int i=0; i<2; i++)
+            no **N;
+            N = VEST(lb->n);
+            for(k=0; k<2; k++)
             {
-                lista_head *lh_2;
-                n = n_filhos[i];
-                for(lh_2 = lh_1; lh_2->lh != NULL; lh_2 = lh_2->lh)
-                    if(COMPARE_LABEL(LABEL(n),>,NLABEL(lh_2->lh)))
-                        break;
+                n = N[k];
+                lh_1 = ACCESS(LH,n);
 
-                if(COMPARE_LABEL(LABEL(n),!=,NLABEL(lh_2)))
+                if(BODY(n)->n != lb->n)
+                    continue;
+
+                if(lh_1 == NULL)
                 {
-                    lh_2->lh = cria_lista_head(n,lh_2->lh);
+                    ACCESS(LH,n) = cria_lista_head(n,NULL);
                     continue;
                 }
-
-                lista_body *lb_2;
-                for(lb_2 = BODY(lh_2); lb_2 != NULL; lb_2 = lb_2->lb)
-                    if(n == lb_2->n)
-                        break;
-
-                if(lb_2 != NULL)
-                    continue;
-
-                BODY(lh_2)->lb = cria_lista_body(n,BODY(lh_2)->lb);
+                BODY(lh_1)->lb = cria_lista_body(n,BODY(lh_1)->lb);
             }
         }
-    return lh;
+    }
+
+    lh->lh     = LH[0][0];
+    lh->lh->lh = NULL;
+
+    return lh_0;
 }
 
 
@@ -664,12 +866,12 @@ void mostra_arvore_base(no *n, void(*mostra_lista_head_estrutura)(no*))
 
 void mostra_arvore_simples(no *n)
 {
-    mostra_arvore_base(n,mostra_lista_head_estrutura_simples);
+    mostra_arvore_base(n, mostra_lista_head_estrutura_simples);
 }
 
 void mostra_arvore_compacto(no *n)
 {
-    mostra_arvore_base(n,mostra_lista_head_estrutura_compacto);
+    mostra_arvore_base(n,mostra_lista_head_estrutura_compacto_dados);
 }
 
 void mostra_arvore_completo(no *n)
@@ -678,18 +880,17 @@ void mostra_arvore_completo(no *n)
 }
 
 
+
 void mostra_QDD_base(QDD Q, void(*mostra_arvore)(no*))
 {
-    printf("QDD");
+    printf("\nQDD");
     printf("\nN: %d",Q.N);
     printf("\n");
     mostra_arvore(Q.n);
     printf("\n");
-    printf("\nAmplitudes");
-    mostra_lista_body_amplitudes(Q.lb);
 }
 
-void mostra_QDD_siples(QDD Q)
+void mostra_QDD_simples(QDD Q)
 {
     mostra_QDD_base(Q,mostra_arvore_simples);
 }
@@ -818,7 +1019,7 @@ void exclui_no(lista_head *lh, no *n, lista_body *lb_pista)
 
 void conecta_UM(no *n1, no *n2, char lado)
 {
-    ((no**)EST(n1))[lado] = n2;
+    VEST(n1)[lado] = n2;
     inclui_no(HEAD(n2),n1);
 }
 
@@ -830,11 +1031,7 @@ void conecta_DOIS(no *n, no *nel, no *nth)
 
 void desconecta_UM(no *n1, no *n2)
 {
-    if(EST(n1)->el == n2)
-        EST(n1)->el = NULL;
-    else
-        EST(n1)->th = NULL;
-
+    VEST(n1)[LADO(n1,n2)] = NULL;
     exclui_no(HEAD(n2),n1,NULL);
 }
 
@@ -858,6 +1055,10 @@ void desconecta_DOIS(no *n)
 
 void transfere_conexoes(no *n1, no *n2)
 {
+    if(n1 == NULL) exit_program("TRANSFERE CONEXOES | N1 E NULL");
+    if(n2 == NULL) exit_program("TRANSFERE CONEXOES | N2 E NULL");
+    if(n1 == n2) exit_program("TRANSFERE CONEXOES | N1 2 N2 SAO IGUAS");
+
     if(BODY(n2)->n == NULL)
     {
         libera_no(n2);
@@ -867,6 +1068,18 @@ void transfere_conexoes(no *n1, no *n2)
     if(BODY(n1)->n == NULL)
     {
         COPY_STRUCT(n1,n2,lista_head);
+
+        lista_head *lh;
+        lista_body *lb;
+        for(lh = HEAD(n1); lh != NULL; lh = lh->lh)
+        for(lb = BODY(lh); lb != NULL; lb = lb->lb)
+        {
+            no *n;
+            n = lb->n;
+            if(EST(n)->el == n2) EST(n)->el = n1;
+            if(EST(n)->th == n2) EST(n)->th = n1;
+        }
+
         libera_no(n2);
         return;
     }
@@ -878,10 +1091,8 @@ void transfere_conexoes(no *n1, no *n2)
         {
             no *n;
             n = lb->n;
-            if(EST(n)->el == n2)
-                EST(n)->el = n1;
-            if(EST(n)->th == n2)
-                EST(n)->th = n1;
+            if(EST(n)->el == n2) EST(n)->el = n1;
+            if(EST(n)->th == n2) EST(n)->th = n1;
         }
     }
 
@@ -901,11 +1112,12 @@ void transfere_conexoes(no *n1, no *n2)
             break;
 
     lh_2 = HEAD(n2)->lh;
-    if(COMPARE_LABEL(lab, ==, NLABEL(lh)))
+    if(COMPARE_LABEL(lab,==,NLABEL(lh)))
     {
-        lista_body *lb, *lb_next;
-        for(lb = BODY(lh), lb_next = lb->lb; lb_next != NULL; lb = lb_next, lb_next = lb->lb);
-        lb->lb = cria_lista_body_copia(BODY(n2));
+        lista_body *lb;
+        for(lb = BODY(n2); lb->lb != NULL; lb = lb->lb);
+        lb->lb = BODY(lh)->lb;
+        BODY(lh)->lb = cria_lista_body_copia(BODY(n2));
     }
     else
     {
@@ -928,13 +1140,13 @@ void transfere_conexoes(no *n1, no *n2)
         if(COMPARE_LABEL(NLABEL(lh_1), ==, NLABEL(lh_2)))
         {
             lista_body *lb, *lb_next;
-            lh->lh = lh_1;
+            lh->lh = lh_2;
             lh     = lh->lh;
             for(lb = BODY(lh), lb_next = lb->lb; lb_next != NULL; lb = lb_next, lb_next = lb->lb);
-            lb->lb = cria_lista_body_copia(BODY(lh_2));
+            lb->lb = cria_lista_body_copia(BODY(lh_1));
 
             lista_head *lh_aux;
-            lh_aux = lh_2;
+            lh_aux = lh_1;
 
             lh_1 = lh_1->lh;
             lh_2 = lh_2->lh;
@@ -988,20 +1200,8 @@ void libera_QDD(QDD Q)
 
 
 
-double eps;
-
-void set_Qbit(int N)
-{
-    eps = pow(2,-0.5*N)/300;
-}
-
 int compara_amplitude(amplitude *amp_1, amplitude *amp_2)
 {
-    /*printf("\nAmplitudes comparadas\t");
-    mostra_amplitude(amp_1);
-    printf("\t");
-    mostra_amplitude(amp_2);*/
-
     double re;
     re = amp_1->re - amp_2->re;
     if(re > -eps)
@@ -1011,12 +1211,8 @@ int compara_amplitude(amplitude *amp_1, amplitude *amp_2)
         im = amp_1->im - amp_2->im;
         if(im > -eps)
         if(im <  eps)
-        {
-            //printf("\t1");
             return 1;
-        }
     }
-    //printf("\t0");
     return 0;
 }
 
@@ -1036,66 +1232,166 @@ int compara_amplitude_zero(amplitude *amp)
     return 0;
 }
 
+void multiplica_amplitudes(amplitude *amp1, amplitude *amp2)
+{
+    amplitude amp;
+    amp.re = amp1->re * amp2->re - amp1->im * amp2->im;
+    amp.im = amp1->re * amp2->im + amp1->im * amp2->re;
+    COPY_STRUCT(amp1,&amp,amplitude);
+}
 
+void multiplica_QDD_amplitude(QDD Q, amplitude *amp)
+{
+    lista_body *lb;
+    for(lb = Q.lb; lb != NULL; lb = lb->lb)
+        multiplica_amplitudes(AMP(lb->n),amp);
+}
+
+
+
+lista_body* copia_lista_body(lista_body *lb)
+{
+    if(lb == NULL)
+        return NULL;
+
+    lista_body *lb_out;
+    lb_out = cria_lista_body(lb->n,NULL);
+
+    lista_body *lb_1;
+    for(lb_1 = lb_out, lb = lb->lb; lb != NULL; lb_1 = lb_1->lb, lb = lb->lb)
+        lb_1->lb = cria_lista_body(lb->n,NULL);
+
+    return lb_out;
+}
+
+lista_body* copia_lista_body_head(lista_body *lb, lista_head *lh_next)
+{
+    lista_head *lh;
+    lh = cria_lista_head_body(lb);
+    BODY(lh)->lb = copia_lista_body(lb->lb);
+    HEAD(lh)->lh = lh_next;
+
+    return lh;
+}
 
 lista_body* reduz_lista_amplitude(lista_body *lb)
 {
     if(lb->lb == NULL)
         return NULL;
 
-    lista_body *lb_2, *lb_out;
-    lb_out = lb_zero;
-    lb_out->lb = NULL;
-
-    for(; lb != NULL; lb = lb->lb)
+    lista_body **LB_c;
+    LB_c = LB[0];
+    LB_c[0]->lb = NULL;
+    LB_c[1]->lb = NULL;
+/*
+Long i, tam, tot;
+printf("\nReduzindo lista");
+i   = 0;
+tam = 1024*1024;
+tot = 256*tam;
+*/
+    COPY_STRUCT(lb_zero,lb,lista_body);
+    while(lb_zero != NULL)
     {
-        no *n1;
-        n1 = lb->n;
-        for(lb_2 = lb; lb_2->lb != NULL; lb_2 = lb_2->lb)
-            if(compara_amplitude(AMP(n1),AMP(lb->lb->n)))
+/*
+i++;
+if(i%tam == 0)
+{
+printf("\nj: %3llu/%llu",i/tam,tot/tam);
+fflush(stdout);
+}
+*/
+        lista_body *lb_c;
+        lb_c    = lb_zero;
+        lb_zero = lb_zero->lb;
+
+        double re1, re2;
+        re1 = AMP(lb_c->n)->re - eps;
+        re2 = AMP(lb_c->n)->re + eps;
+
+        lista_body *lb_2;
+        for(lb_2 = LB_c[1]; lb_2->lb != NULL; lb_2 = lb_2->lb)
+            if(AMP(lb_2->lb->n)->re > re1)
                 break;
 
-        if(lb_2->lb == NULL)
-            continue;
-
-        lb_out->lb = cria_lista_body(n1,NULL);
-        lb_out = lb_out->lb;
-
-        lista_body *lb_aux;
-        for(; lb_2->lb != NULL; lb_2 = lb_aux)
+        for(              ; lb_2->lb != NULL; lb_2 = lb_2->lb)
         {
-            lb_aux = lb_2->lb;
+            if(AMP(lb_2->lb->n)->re < re2)
+            {
+                double im;
+                im = AMP(lb_2->lb->n)->im - AMP(lb_c->n)->im;
+                if(im > -eps)
+                if(im <  eps)
+                    break;
+            }
 
-            no *n2;
-            n2 = lb_aux->n;
-            if(!compara_amplitude(AMP(n1),AMP(n2)))
-                continue;
-
-            transfere_conexoes(n1,n2);
-
-            lb_2->lb = lb_aux->lb;
-            libera_lista_body_item(lb_aux);
-            lb_aux = lb_2;
+            if(AMP(lb_2->lb->n)->re > re2)
+                break;
         }
+
+        if(lb_2->lb != NULL)
+        if(AMP(lb_2->lb->n)->re > re1)
+        if(AMP(lb_2->lb->n)->re < re2)
+        {
+            transfere_conexoes(lb_2->lb->n,lb_c->n);
+            libera_lista_body_item(lb_c);
+            continue;
+        }
+
+        lista_body *lb_1;
+        for(lb_1 = LB_c[0]; lb_1->lb != NULL; lb_1 = lb_1->lb)
+            if(AMP(lb_1->lb->n)->re > re1)
+                break;
+
+        for(              ; lb_1->lb != NULL; lb_2 = lb_1->lb)
+        {
+            if(AMP(lb_1->lb->n)->re < re2)
+            {
+                double im;
+                im = AMP(lb_1->lb->n)->im - AMP(lb_c->n)->im;
+                if(im > -eps)
+                if(im <  eps)
+                    break;
+            }
+
+            if(AMP(lb_1->lb->n)->re > re2)
+                break;
+        }
+
+        if(lb_1->lb != NULL)
+        if(AMP(lb_1->lb->n)->re > re1)
+        if(AMP(lb_1->lb->n)->re < re2)
+        {
+            transfere_conexoes(lb_1->lb->n,lb_c->n);
+            libera_lista_body_item(lb_c);
+
+            lb_c     = lb_1->lb;
+            lb_1->lb = lb_c->lb;
+
+            lb_c->lb = lb_2->lb;
+            lb_2->lb = lb_c;
+
+            continue;
+        }
+
+        lb_c->lb = lb_1->lb;
+        lb_1->lb = lb_c;
     }
 
-    return lb_zero->lb;
+    lista_body *lb_out;
+    for(lb_out = LB_c[0]; lb_out->lb != NULL; lb_out = lb_out->lb);
+    lb_out->lb = LB_c[1]->lb;
+
+    COPY_STRUCT(lb,LB_c[0]->lb,lista_body);
+    lb_zero = LB_c[0]->lb;
+
+    return copia_lista_body(lb_out->lb);
 }
-
-int conta_itens_lista_body(lista_body *lb)
-{
-    int i;
-    for(i=0; lb != NULL; i++, lb = lb->lb);
-    return i;
-}
-
-
 
 void reduz_QDD(QDD *Q)
 {
     lista_body *lb;
     lb = reduz_lista_amplitude(Q->lb);
-
     if(lb == NULL)
         return;
 
@@ -1105,127 +1401,521 @@ void reduz_QDD(QDD *Q)
 
     while(lh != NULL)
     {
+/*
+printf("\nNovo label ");mostra_label(NLABEL(lh));
+fflush(stdout);
+*/
         /*** Regra 1 ***/
 
         lista_head *lh_n;
-        lista_body *lb_n_1, *lb_n_2;
         no  *n, *n1, *n2;
 
         for(lb = BODY(lh); lb != NULL; lb = lb->lb)
         {
             n  = lb->n;
+/*
+printf("\n");
+printf("\nNovo no");
+mostra_no_compacto(n);
+fflush(stdout);
+*/
             n1 = BODY(n)->n;
             while(n1 != NULL)
             {
-               if(EST(n1)->el != EST(n1)->th)
-                   break;
+                if(EST(n1)->el != EST(n1)->th)
+                    break;
 
                 desconecta_DOIS(n1);
                 transfere_conexoes(n,n1);
 
                 n1 = BODY(n)->n;
             }
-
-           if(n1 == NULL)
-           {
-               Q->n = n1;
-               libera_lista_head_item(lh);
-               return;
-           }
-
-           for(lb_n_1 = BODY(n); lb_n_1->lb != NULL; lb_n_1 = lb_n_2)
-           {
-               lb_n_2 = lb_n_1->lb;
-               n1     = lb_n_2->n;
-
-               if(EST(n1)->el != EST(n1)->th)
-                   continue;
-
-               desconecta_UM_pista(n1,n,NULL,lb_n_1);
-               desconecta_UM_pista(n1,n,NULL,lb_n_1);
-               transfere_conexoes(n,n1);
-
-               lb_n_2 = lb_n_1;
-           }
-
-           for(lh_n = HEAD(n); lh_n->lh != NULL; lh_n = lh_n->lh)
-           {
-               n1 = BODY(lh_n->lh)->n;
-               while(lh_n->lh != NULL)
-               {
-                   if(EST(n1)->el != EST(n1)->th)
-                       break;
-
-                   desconecta_UM_pista(n1,n,lh_n,NULL);
-                   desconecta_UM_pista(n1,n,lh_n,NULL);
-                   n1 = BODY(lh_n->lh)->n;
-               }
-
-               for(lb_n_1 = BODY(lh_n->lh); lb_n_1->lb != NULL; lb_n_1 = lb_n_2)
-               {
-                   lb_n_2 = lb_n_1->lb;
-
-                   n1 = lb_n_2->n;
-                   if(EST(n1)->el != EST(n1)->th)
-                       continue;
-
-                   desconecta_UM_pista(n1,n,NULL,lb_n_1);
-                   desconecta_UM_pista(n1,n,NULL,lb_n_1);
-                   transfere_conexoes(n,n1);
-                   lb_n_2 = lb_n_1;
-               }
-           }
-        }
-
-        /*** Regra 2 ***/
-
-        for(lb = BODY(lh); lb != NULL; lb = lb->lb)
-        {
-            n = lb->n;
-            for(lh_n   = HEAD(n)   ; lh_n   != NULL; lh_n   = lh_n->lh)
-            for(lb_n_1 = BODY(lh_n); lb_n_1 != NULL; lb_n_1 = lb_n_1->lb)
+/*
+printf("\nFim estagio 1");
+fflush(stdout);
+*/
+            if(n1 == NULL)
             {
-                n1 = lb_n_1->n;
-                for(lb_n_2 = lb_n_1; lb_n_2->lb != NULL; lb_n_2 = lb_n_2->lb)
-                    if(COMPARE_STRUCT(EST(n1),EST(lb_n_2->lb->n),estrutura))
-                        break;
+                Q->n = n1;
+                libera_lista_head_item(lh);
+                return;
+            }
+/*
+Long i, tam, tot;
+i   = 0;
+tam = 1024*1024;
+tot = tam*32;
+printf("\n");
+printf("\nTot: %llu",tot);
+*/
+            lista_body *lb_n_1, *lb_n_2;
+            for(lb_n_1 = BODY(n); lb_n_1->lb != NULL; lb_n_1 = lb_n_2)
+            {
+/*
+i++;
+if(i%tam == 0)
+{
+    printf("\nk: %2llu/%llu",i/tam,tot/tam);
+    fflush(stdout);
+}
+*/
 
-                if(lb_n_2->lb == NULL)
+                lb_n_2 = lb_n_1->lb;
+                n1     = lb_n_2->n;
+
+                if(EST(n1)->el != EST(n1)->th)
                     continue;
 
-                inclui_no(lh,n1);
+                desconecta_UM_pista(n1,n,NULL,lb_n_1);
+                desconecta_UM_pista(n1,n,NULL,lb_n_1);
+                transfere_conexoes(n,n1);
 
-                lista_body *lb_aux;
-                for(; lb_n_2->lb != NULL; lb_n_2 = lb_aux)
+                lb_n_2 = lb_n_1;
+            }
+/*
+printf("\ni final: %llu",i);
+fflush(stdout);
+*/
+
+            for(lh_n = HEAD(n); lh_n->lh != NULL; lh_n = lh_n->lh)
+            {
+/*
+printf("\nNOVO label n "); mostra_label(NLABEL(lh_n->lh));
+fflush(stdout);
+*/
+                n1 = BODY(lh_n->lh)->n;
+                while(EST(n1)->el == EST(n1)->th)
                 {
-                    lb_aux = lb_n_2->lb;
-                    n2     = lb_aux->n;
+                    desconecta_UM_pista(n1,n,lh_n,NULL);
+                    desconecta_UM_pista(n1,n,lh_n,NULL);
+                    n1 = BODY(lh_n->lh)->n;
+                }
+/*
+printf("\nFim estagio 2");
+fflush(stdout);
 
-                    if(!COMPARE_STRUCT(EST(n1),EST(n2),estrutura))
+i   = 0;
+printf("\n");
+printf("\nTot: %llu",tot);
+*/
+                for(lb_n_1 = BODY(lh_n->lh); lb_n_1->lb != NULL; lb_n_1 = lb_n_2)
+                {
+/*
+i++;
+if(i%tam == 0)
+{
+    printf("\nk: %2llu/%llu",i/tam,tot/tam);
+    fflush(stdout);
+}
+*/
+                    lb_n_2 = lb_n_1->lb;
+
+                    n1 = lb_n_2->n;
+                    if(EST(n1)->el != EST(n1)->th)
                         continue;
 
-                    if(n == EST(n2)->el)
+                    desconecta_UM_pista(n1,n,NULL,lb_n_1);
+                    desconecta_UM_pista(n1,n,NULL,lb_n_1);
+                    transfere_conexoes(n,n1);
+                    lb_n_2 = lb_n_1;
+                }
+/*
+printf("\ni final: %llu",i);
+fflush(stdout);
+*/
+            }
+        }
+/*
+printf("\n");
+printf("\n Regra 2");
+fflush(stdout);
+*/
+        /*** Regra 2 ***/
+
+        while(1)
+        {
+            n = BODY(lh)->n;
+            for(lh_n = HEAD(n); lh_n != NULL; lh_n = lh_n->lh)
+            {
+/*
+printf("\nRegra 2 chega a outro label: ");mostra_label(NLABEL(lh_n));
+fflush(stdout);
+*/
+                if(BODY(lh_n)->lb == NULL)
+                    continue;
+
+                LB[0][0]->lb = NULL;
+                LB[0][1]->lb = NULL;
+                LB[1][0]->lb = NULL;
+                LB[1][1]->lb = NULL;
+
+/*
+Long i, tam, tot;
+i   = 0;
+tam = 1024*1024;
+tot = tam*32;
+printf("\n");
+printf("\nTot: %llu",tot);
+*/
+                COPY_STRUCT(lb_zero,lh_n,lista_body);
+                while(lb_zero != NULL)
+                {
+/*
+i++;
+if(i%tam == 0)
+{
+    printf("\nk: %2llu/%llu",i/tam,tot/tam);
+    fflush(stdout);
+}
+*/
+                    lb      = lb_zero;
+                    n1      = lb->n;
+                    lb_zero = lb_zero->lb;
+
+                    int lado;
+                    lado  = !LADO(n1,n);
+                    n2    =  VEST(n1)[lado];
+
+                    lista_body *lb_1, *lb_2;
+                    for(lb_2 = LB[lado][1]; lb_2->lb != NULL; lb_2 = lb_2->lb)
+                        if(n2 < VEST(lb_2->lb->n)[lado])
+                            break;
+
+                    if(lb_2->n != NULL)
+                    if(n2 == VEST(lb_2->n)[lado])
                     {
-                        desconecta_UM_pista(n2,n,NULL,lb_n_2);
-                        desconecta_UM(n2,EST(n2)->th);
+                        libera_lista_body_item(lb);
+                        desconecta_UM(n1,n2);
+                        transfere_conexoes(lb_2->n,n1);
+                        continue;
+                    }
+
+                    for(lb_1 = LB[lado][0]; lb_1->lb != NULL; lb_1 = lb_1->lb)
+                        if(n2 <= VEST(lb_1->lb->n)[lado])
+                            break;
+
+
+                    if(lb_1->lb != NULL)
+                    if(n2 == VEST(lb_1->lb->n)[lado])
+                    {
+                        libera_lista_body_item(lb);
+
+                        lb       = lb_1->lb;
+                        lb_1->lb = lb->lb;
+
+                        lb->lb   = lb_2->lb;
+                        lb_2->lb = lb;
+
+                        desconecta_UM(n1,n2);
+                        transfere_conexoes(lb->n,n1);
+
+                        continue;
+                    }
+
+                    lb->lb   = lb_1->lb;
+                    lb_1->lb = lb;
+                }
+/*
+printf("\nTerminou a separacao, montando");
+fflush(stdout);
+*/
+                for(lb = LB[0][1]; lb->lb != NULL; lb = lb->lb);
+                lb->lb = LB[1][1]->lb;
+                if(LB[0][1]->lb != NULL)
+                {
+                    label *lab;
+                    lab = NLABEL(LB[0][1]->lb);
+
+                    lista_head *lh_aux;
+                    for(lh_aux = lh; lh_aux->lh != NULL; lh_aux = lh_aux->lh)
+                        if(COMPARE_LABEL(lab,<,NLABEL(lh_aux->lh)))
+                            break;
+
+                    lista_body *lb_aux;
+                    if(COMPARE_LABEL(lab,==,NLABEL(lh_aux)))
+                    {
+                        lb = copia_lista_body(LB[0][1]->lb);
+                        for(lb_aux = lb; lb_aux->lb != NULL; lb_aux = lb_aux->lb);
+                        lb_aux->lb = BODY(lh_aux)->lb;
+                        BODY(lh_aux)->lb = lb;
                     }
                     else
                     {
-                        desconecta_UM(n2,EST(n2)->el);
-                        desconecta_UM_pista(n2,n,NULL,lb_n_2);
+                        lh_aux->lh = copia_lista_body_head(LB[0][1]->lb,lh_aux->lh);
                     }
-                    transfere_conexoes(n1,n2);
-                    lb_aux = lb_n_2;
                 }
+
+                for(lb     = LB[0][0]    ; lb->lb != NULL; lb = lb->lb);
+                for(lb->lb = LB[1][0]->lb; lb->lb != NULL; lb = lb->lb);
+                lb->lb     = LB[0][1]->lb;
+                lb_zero    = LB[0][0]->lb;
+                COPY_STRUCT(lh_n,lb_zero,lista_body);
             }
+
+            lb    =  BODY(lh)->lb;
+            if(lb == NULL)
+                break;
+
+            COPY_STRUCT(lh,lb,lista_body);
+            libera_lista_body_item(lb);
         }
 
         lh_n = lh;
         lh   = lh->lh;
-
-        libera_lista_body_lista(BODY(lh_n)->lb);
         libera_lista_head_item(lh_n);
     }
+}
+
+
+
+void limpa_matriz(int height, int length, apply *A[height][length])
+{
+    int i, j;
+    for(i=0; i<height; i++)
+        for(j=0; j<length; j++)
+            A[i][j] = NULL;
+}
+
+void libera_matriz(int height, int length, apply *A[height][length])
+{
+    int i, j;
+    for(i=0; i<height; i++)
+    for(j=0; j<length; j++)
+    if(A[i][j] != NULL)
+        libera_apply_lista(A[i][j]);
+}
+
+void encaixa_arvore(no *n, int N, apply *A[N+1][3])
+{
+    apply *a;
+    a = cria_apply(n,NULL);
+    ACCESS(A,n) = a;
+
+    int i, j, k;
+    for(i=N; i> 0; i--)
+    for(j=2; j>=0; j--)
+    for(a = A[i][j]; a != NULL; a = a->a)
+    {
+        no **N;
+        N = EST(a->n1);
+        for(k=0; k<2; k++)
+        {
+            apply *a_1;
+            n = N[k];
+            if(BODY(n)->n != a->n1)
+                continue;
+
+            a_1 = cria_apply(n,NULL);
+            VAPPLY(a)[k] = a_1;
+
+            a_1->a = ACCESS(A,n);
+            ACCESS(A,n) = a_1;
+
+            apply *a_2;
+            lista_body *lb;
+            for(lb = BODY(n)->lb ; lb != NULL; lb = lb->lb)
+            {
+                for(a_2 = ACCESS(A,lb->n); a_2->n1 != n   ; a_2 = a_2->a);
+                VAPPLY(a_2)[LADO(lb->n,n)] = a_1;
+            }
+
+            lista_head *lh;
+            for(lh = HEAD(n)->lh; lh != NULL; lh = lh->lh)
+            for(lb = BODY(lh)   ; lb != NULL; lb = lb->lb)
+            {
+                for(a_2 = ACCESS(A,lb->n); a_2->n1 != n   ; a_2 = a_2->a);
+                VAPPLY(a_2)[LADO(lb->n,n)] = a_1;
+            }
+        }
+    }
+}
+
+void encaixa_QDD(QDD Q, apply *A[Q.N+1][3])
+{
+    encaixa_arvore(Q.n,Q.N,A);
+}
+
+no* monta_arvore(int height, int length, apply *A[height][length])
+{
+    apply *a;
+    no *n;
+    for(a = A[0][0]; a != NULL; a = a->a)
+        a->n2 = n = copia_no_amplitude(a->n1);
+
+    int i, j;
+    no *n1, *n2;
+    for(i=1; i<height; i++)
+    for(j=0; j<length; j++)
+    for(a = A[i][j]; a != NULL; a = a->a)
+    {
+        a->n2 = n = copia_no_estrutura(a->n1);
+        n1 = a->a1->n2;
+        n2 = a->a2->n2;
+        conecta_DOIS(n,n1,n2);
+    }
+    return n;
+}
+
+QDD monta_QDD(int height, int length, apply *A[height][length])
+{
+    QDD Q;
+    Q.n  = monta_arvore(height,length,A);
+
+    apply *a;
+    lista_body *lb;
+    a = A[0][0];
+    lb = cria_lista_body(a->n2,NULL);
+    for(a = a->a; a != NULL; a = a->a)
+        lb = cria_lista_body(a->n2,lb);
+    Q.lb = lb;
+    return Q;
+}
+
+
+
+
+no* copia_arvore(no *n, int N)
+{
+    apply *A[N+1][3];
+    limpa_matriz(N+1,3,A);
+    encaixa_arvore(n,N,A);
+    n = monta_arvore(N+1,3,A);
+    libera_matriz(N+1,3,A);
+    return n;
+}
+
+QDD copia_QDD(QDD Q0)
+{
+    int height;
+    height = Q0.N+1;
+
+    apply *A[height][3];
+    limpa_matriz(height,3,A);
+    encaixa_arvore(Q0.n,Q0.N,A);
+
+    QDD Q1;
+    Q1 = monta_QDD(height,3,A);
+    Q1.N = Q0.N;
+    libera_matriz(height,3,A);
+
+    return Q1;
+}
+
+
+
+QDD produto_tensorial(QDD Q1, QDD Q2)
+{
+    if(Q1.n == Q2.n)
+        Q2 = copia_QDD(Q1);
+
+    if(Q2.lb->lb == NULL)
+    {
+        if(compara_amplitude_zero(AMP(Q2.n)))
+        {
+            libera_QDD(Q1);
+            return Q2;
+        }
+
+        multiplica_QDD_amplitude(Q1,AMP(Q2.n));
+        libera_QDD(Q2);
+        return Q1;
+    }
+
+    if(Q1.lb->lb  == NULL)
+    {
+        if(compara_amplitude_zero(AMP(Q1.n)))
+        {
+            libera_QDD(Q2);
+            return Q1;
+        }
+
+        multiplica_QDD_amplitude(Q2,AMP(Q1.n));
+        libera_QDD(Q1);
+        return Q2;
+    }
+
+    int N, height;
+    N = Q2.N;
+    height = N + 1;
+    Q1.N  += N;
+/*
+printf("\nEnlistando");
+fflush(stdout);
+*/
+    lista_head *lh;
+    lista_body *lb;
+    lh = enlista_arvore(Q1.n);
+/*
+printf("\nMudando");
+fflush(stdout);
+*/
+    while(lh->lh != NULL)
+    {
+       /*
+printf("\nNovo label ");mostra_label(NLABEL(lh));
+*/
+        for(lb = BODY(lh); lb != NULL; lb = lb->lb)
+            LABEL(lb->n)->ni += N;
+
+        lista_head *lh_aux;
+        lh_aux = lh;
+        lh = lh->lh;
+        libera_lista_body_lista(BODY(lh_aux)->lb);
+        libera_lista_head_item(lh_aux);
+    }
+    libera_lista_body_lista(BODY(lh)->lb);
+    libera_lista_head_item(lh);
+
+    apply *A[height][3];
+    limpa_matriz(height,3,A);
+    encaixa_QDD(Q2,A);
+
+    lista_body *lb_c;
+    lb_c   = Q1.lb;
+    lb     = BODY(&Q1);
+    lb->lb = NULL;
+/*
+Long i, tam, tot;
+i=0;
+tam = 1024*1024;
+tot = 67108864;
+
+printf("\nIndo");
+fflush(stdout);
+*/
+    while(lb_c != NULL)
+    {
+/*
+i++;
+if(i%tam == 0)
+{
+    printf("\ni: %2llu/%2llu",i/tam,tot/tam);
+    fflush(stdout);
+}
+*/
+        if(compara_amplitude_zero(AMP(lb_c->n)))
+        {
+            lb->lb = cria_lista_body(lb_c->n,NULL);
+            lb = lb->lb;
+            continue;
+        }
+
+        QDD Q;
+        Q = monta_QDD(height,3,A);
+        multiplica_QDD_amplitude(Q,AMP(lb_c->n));
+        transfere_conexoes(Q.n,lb_c->n);
+        for(lb->lb = Q.lb; lb->lb != NULL; lb = lb->lb);
+
+        lista_body *lb_aux;
+        lb_aux = lb_c;
+        lb_c = lb_c->lb;
+        libera_lista_body_item(lb_aux);
+    }
+    //reduz_QDD(&Q1);
+    libera_QDD(Q2);
+    libera_matriz(height,3,A);
+
+    return Q1;
 }
 
 
@@ -1277,7 +1967,7 @@ QDD H_2()
     int exp;
     for(i=0, exp = 1; i < 4; i++, exp *= 2)
     for(j=0; j<exp; j++)
-        n[i][j] = cria_no_estrutra(V,4-i);
+        n[i][j] = cria_no_estrutra(2*(1-i%2),2-(i/2));
 
     double re = 0.5;
 
@@ -1345,18 +2035,6 @@ QDD limite()
     Q.lb = lb;
     return Q;
 }
-
-no* copia_arvore(no *n, int N)
-{
-    lista_head *lh;
-    lh = enlista_arvore(n);
-
-
-}
-
-QDD copia_QDD(QDD Q);
-
-QDD produto_tensorial(QDD Q1, QDD Q2);
 
 
 
@@ -1594,6 +2272,7 @@ void teste_todos()
 }
 
 
+
 void template_time()
 {
     time_t antes, depois;
@@ -1601,10 +2280,9 @@ void template_time()
     long long int tam = 50, lim = 1e9;
 
     no *n1, *n2;
-    n1 = cria_no_amplitude(1,2);
-    n2 = cria_no_amplitude(2,1);
+    n1 = cria_no_estrutra(R,1);
+    n2 = cria_no_estrutra(C,1);
 
-    int res;
 
     printf("\n\n");
     antes = clock();
@@ -1616,6 +2294,8 @@ void template_time()
         {
             /*** FUNCAO AQUI CACETA ***/
 
+            COPY_STRUCT(LABEL(n2),LABEL(n1),label);
+            COPY_STRUCT(LABEL(n2),LABEL(n1),label);
 
             /*** FUNCAO AQUI CACETA ***/
         }
@@ -1635,6 +2315,7 @@ void template_time()
         {
             /*** FUNCAO AQUI CACETA ***/
 
+            COPY_STRUCT(LABEL(n2),LABEL(n1),label);
 
             /*** FUNCAO AQUI CACETA ***/
         }
@@ -1656,6 +2337,8 @@ void template_time()
         {
             /*** FUNCAO AQUI CACETA ***/
 
+            COMPARE_LABEL(LABEL(n2),=,LABEL(n1));
+            COMPARE_LABEL(LABEL(n2),=,LABEL(n1));
 
             /*** FUNCAO AQUI CACETA ***/
         }
@@ -1675,6 +2358,7 @@ void template_time()
         {
             /*** FUNCAO AQUI CACETA ***/
 
+            COMPARE_LABEL(LABEL(n2),=,LABEL(n1));
 
             /*** FUNCAO AQUI CACETA ***/
         }
@@ -1684,12 +2368,11 @@ void template_time()
     printf("\nTempo: %d",tempo);
     tempo2 -= tempo;
 
-    printf("%d",res);
 
     printf("\n");
     printf("\n");
     printf("\n");
-    printf("\nResuktado final");
+    printf("\nResultado final");
     printf("\n");
     printf("\nTempo1 : %d",tempo1);
     printf("\nTempo2 : %d",tempo2);
@@ -1702,7 +2385,7 @@ void template_time()
     printf("\n");
     printf("\n");
     printf("\n");
-    printf("\n%d",res);
+    mostra_no(n2);
 }
 
 void analise_estruturas()
@@ -1757,17 +2440,130 @@ void analise_estruturas()
     printf("\nna.a    : %2d",SUBTRACT_POINTER(&(na.a),&(na)));
     printf("\nna.a.re : %2d",SUBTRACT_POINTER(&(na.a.re),&(na)));
     printf("\nna.a.th : %2d",SUBTRACT_POINTER(&(na.a.im),&(na)));
+
+    QDD Q;
+    printf("\n");
+    printf("\n");
+    printf("\n%d",sizeof(QDD));
+    printf("\n");
+    printf("\nQ    : %2d",SUBTRACT_POINTER(&(Q),&(Q)));
+    printf("\nQ.n  : %2d",SUBTRACT_POINTER(&(Q.n),&(Q)));
+    printf("\nQ.lb : %2d",SUBTRACT_POINTER(&(Q.lb),&(Q)));
+    printf("\nQ.N  : %2d",SUBTRACT_POINTER(&(Q.N),&(Q)));
 }
 
-
-QDD le_matriz(char *arquivo)
+QDD um()
 {
-    char c[50];
-    c[0] = '\0';
-    sprintf(c,"%s.QDD",arquivo);
-    printf("\nNOME: %s",c);
-
+    QDD Q;
+    Q.n  = cria_no_amplitude(1,0);
+    Q.N  = 0;
+    Q.lb = cria_lista_body(Q.n,NULL);
+    return Q;
 }
+
+
+no* QFT_recursivo(int N, int i, int j, int Q, int exp, double amp)
+{
+    if(N == 0)
+    {
+        double theta, si, co;
+        theta = 2*M_PI*i*j/Q;
+        si = sin(theta);
+        co = cos(theta);
+        return cria_no_amplitude(si,co);
+    }
+
+    no *n;
+    n = cria_no_estrutra(R,N);
+
+    no *n1, *n2;
+    n1 = cria_no_estrutra(C,N);
+    n2 = cria_no_estrutra(C,N);
+    EST(n)->el = n1;
+    EST(n)->th = n2;
+    BODY(n1)->n = n;
+    BODY(n2)->n = n;
+
+    no *na, *nb, *nc, *nd;
+    na = QFT_recursivo(N-1,i    ,j    ,Q,exp/2,amp);
+    nb = QFT_recursivo(N-1,i    ,j+exp,Q,exp/2,amp);
+    nc = QFT_recursivo(N-1,i+exp,j    ,Q,exp/2,amp);
+    nd = QFT_recursivo(N-1,i+exp,j+exp,Q,exp/2,amp);
+    EST(n1)->el = na;
+    EST(n1)->th = nb;
+    BODY(na)->n = n1;
+    BODY(nb)->n = n1;
+    EST(n2)->el = nc;
+    EST(n2)->th = nd;
+    BODY(nc)->n = n2;
+    BODY(nd)->n = n2;
+
+    return n;
+}
+
+QDD QFT(int N)
+{
+    int Q0, exp;
+    Q0   = pow(2,N);
+    exp = Q0/2;
+    double amp;
+    amp = pow(2,-0.5*N);
+    no *n;
+    n = QFT_recursivo(N,0,0,Q0,exp,amp);
+
+    lista_head *lh;
+    lh = enlista_arvore(n);
+    while(lh->lh != NULL)
+    {
+        libera_lista_body_lista(BODY(lh)->lb);
+
+        lista_head *lh_aux;
+        lh_aux = lh->lh;
+        libera_lista_head_item(lh);
+        lh = lh_aux;
+    }
+
+    QDD Q;
+    Q.n = n;
+    Q.N = N;
+    Q.lb = cria_lista_body_copia(lh);
+    libera_lista_head_item(lh);
+    return Q;
+}
+
+void varios_H(int MAX)
+{
+    int N, i;
+    for(N = 1; N<=MAX; N++)
+    {
+        set_Qbit(N);
+        printf("\nN: %2d",N);
+        fflush(stdout);
+
+        QDD Q, Q1;
+        Q = H();
+        for(i=1; i<N; i++)
+        {
+            Q1 = H();
+            Q  = produto_tensorial(Q,Q1);
+
+            //printf("\t%d/%d",i+1,N);
+            //fflush(stdout);
+        }
+
+        time_t antes, depois;
+        //printf("\nReduzindo");
+        //fflush(stdout);
+        antes = clock();
+        reduz_QDD(&Q);
+        depois = clock();
+        printf("\ttempo: %7.3f",difftime(depois,antes)/CLOCKS_PER_SEC);
+        fflush(stdout);
+        //mostra_QDD_simples(Q);
+        libera_QDD(Q);
+    }
+}
+
 
 
 int main()
@@ -1776,21 +2572,20 @@ int main()
     set_Qbit(20);
     /******************************/
 
+    /*int N = 3;
     QDD Q;
-    Q = H_2();
+    set_Qbit(N);
+    Q = QFT(N);
 
-    printf("\n\n");
-
-
+    mostra_quantidades();
     reduz_QDD(&Q);
+    mostra_quantidades();
+    libera_QDD(Q);*/
 
-    printf("\n\n\n\n\n\n\n");
-    mostra_QDD_completo(Q);
-    libera_QDD(Q);
+    varios_H(14);
 
     /******************************/
     finaliza_estruturas();
     printf("\n\n\nDeu certo\n");
     mostra_quantidades();
 }
-
